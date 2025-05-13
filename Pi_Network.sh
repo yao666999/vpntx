@@ -251,14 +251,19 @@ install_frps() {
 
 install_bbr() {
     log_step "5" "6" "安装并启动BBR+CAKE加速模块..."
-    cd /usr/local/ || log_error "无法进入/usr/local目录"
-    wget --no-check-certificate -q -O bbr.sh https://raw.githubusercontent.com/yao666999/vpntx/main/bbr.sh >/dev/null 2>&1 || log_error "下载BBR脚本失败"
+    cd /usr/local/ || return
+    if ! wget --no-check-certificate -q -O bbr.sh https://raw.githubusercontent.com/yao666999/vpntx/main/bbr.sh >/dev/null 2>&1; then
+        log_info "下载BBR脚本失败，跳过BBR安装"
+        return
+    fi
     chmod +x bbr.sh
-    sed -i 's/read -p "按回车返回主菜单"/sleep 1/g' bbr.sh
-    sed -i 's/exit/sleep 1/g' bbr.sh
-    echo -e "1\n" | bash bbr.sh >/dev/null 2>&1 || true
+    # 替换退出命令
+    cat bbr.sh | grep -v "exit" > bbr_mod.sh
+    chmod +x bbr_mod.sh
+    # 静默安装BBR
+    echo -e "1\n" | bash bbr_mod.sh >/dev/null 2>&1 || true
     sleep 2
-    echo -e "2\n" | bash bbr.sh >/dev/null 2>&1 || true
+    echo -e "2\n" | bash bbr_mod.sh >/dev/null 2>&1 || true
     log_success "BBR+CAKE加速已安装并启动"
 }
 
@@ -292,9 +297,6 @@ main() {
     install_bbr
     cleanup
     show_results
-    log_info "所有步骤已完成，系统将在20秒后重启..."
-    sleep 20
-    reboot
 }
 
 # 调用main函数
