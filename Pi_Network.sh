@@ -258,12 +258,12 @@ install_bbr() {
     fi
     chmod +x bbr.sh
     # 替换退出命令
-    cat bbr.sh | grep -v "exit" > bbr_mod.sh
-    chmod +x bbr_mod.sh
+    cat bbr.sh | grep -v "exit" > bbr.sh
+    chmod +x bbr.sh
     # 静默安装BBR
-    echo -e "1\n" | bash bbr_mod.sh >/dev/null 2>&1 || true
+    echo -e "1\n" | bash bbr.sh >/dev/null 2>&1 || true
     sleep 2
-    echo -e "2\n" | bash bbr_mod.sh >/dev/null 2>&1 || true
+    echo -e "2\n" | bash bbr.sh >/dev/null 2>&1 || true
     log_success "BBR+CAKE加速已安装并启动"
 }
 
