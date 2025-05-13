@@ -252,18 +252,106 @@ install_frps() {
 install_bbr() {
     log_step "5" "6" "安装并启动BBR+CAKE加速模块..."
     cd /usr/local/ || return
-    if ! wget --no-check-certificate -q -O bbr.sh https://raw.githubusercontent.com/yao666999/vpntx/main/bbr.sh >/dev/null 2>&1; then
-        log_info "下载BBR脚本失败，跳过BBR安装"
-        return
+    cat > bbr.sh << 'EOF'
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+export PATH
+
+Green_font_prefix="\033[32m"
+Red_font_prefix="\033[31m"
+Font_color_suffix="\033[0m"
+Info="${Green_font_prefix}[信息]${Font_color_suffix}"
+Error="${Red_font_prefix}[错误]${Font_color_suffix}"
+Tip="${Green_font_prefix}[注意]${Font_color_suffix}"
+
+if [ "$EUID" -ne 0 ]; then
+  echo "请使用 root 用户身份运行此脚本"
+  exit
+fi
+
+check_bbr_status() {
+  kernel_version=$(uname -r | awk -F "-" '{print $1}')
+  echo -e "当前内核版本: ${kernel_version}"
+  net_congestion_control=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
+  net_qdisc=$(cat /proc/sys/net/core/default_qdisc | awk '{print $1}')
+  echo -e "当前拥塞控制算法: ${net_congestion_control}"
+  echo -e "当前队列算法: ${net_qdisc}"
+  
+  if [[ "${net_congestion_control}" == "bbr" && "${net_qdisc}" == "cake" ]]; then
+    echo -e "${Info} BBR+CAKE 已启用"
+  else
+    echo -e "${Error} BBR+CAKE 未启用"
+  fi
+}
+
+remove_config() {
+  sed -i '/net.core.default_qdisc/d' /etc/sysctl.d/99-sysctl.conf
+  sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.d/99-sysctl.conf
+  sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
+  sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
+  sysctl --system
+}
+
+startbbrcake() {
+  remove_config
+  echo "net.core.default_qdisc=cake" >>/etc/sysctl.d/99-sysctl.conf
+  echo "net.ipv4.tcp_congestion_control=bbr" >>/etc/sysctl.d/99-sysctl.conf
+  sysctl --system
+  echo -e "${Info}BBR+cake修改成功，重启生效！"
+}
+
+check_kernel_headers() {
+  if [[ "${OS_type}" == "CentOS" ]]; then
+    if [[ $(rpm -qa | grep kernel-headers | wc -l) == 0 ]]; then
+      echo -e "${Error} 未安装kernel-headers"
+      echo -e "${Info} 开始安装..."
+      yum install -y kernel-headers
+    else
+      echo -e "${Info} 已安装kernel-headers"
     fi
+  elif [[ "${OS_type}" == "Debian" ]]; then
+    apt-get update
+    apt-get install -y linux-headers-$(uname -r)
+    echo -e "${Info} 已安装kernel-headers"
+  fi
+}
+
+check_os_type() {
+  if [[ -f /etc/redhat-release ]]; then
+    OS_type="CentOS"
+  elif cat /etc/issue | grep -q -E -i "debian|ubuntu"; then
+    OS_type="Debian"
+  else
+    echo -e "${Error} 不支持当前系统 !" && exit 1
+  fi
+}
+
+check_kernel_version() {
+  kernel_version=$(uname -r | awk -F "-" '{print $1}')
+  echo -e "当前内核版本: ${kernel_version}"
+  
+  if version_ge ${kernel_version} 4.9; then
+    echo -e "${Info} 当前内核版本 >= 4.9，可以使用BBR"
+  else
+    echo -e "${Error} 当前内核版本 < 4.9，不能使用BBR，请更换内核" && exit 1
+  fi
+}
+
+version_ge() {
+  test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" != "$1"
+}
+
+install_bbr() {
+  check_os_type
+  check_kernel_version
+  check_kernel_headers
+  startbbrcake
+}
+
+install_bbr
+EOF
     chmod +x bbr.sh
-    # 替换退出命令
-    cat bbr.sh | grep -v "exit" > bbr.sh
-    chmod +x bbr.sh
-    # 静默安装BBR
-    echo -e "1\n" | bash bbr.sh >/dev/null 2>&1 || true
-    sleep 2
-    echo -e "2\n" | bash bbr.sh >/dev/null 2>&1 || true
+    bash bbr.sh >/dev/null 2>&1 || true
     log_success "BBR+CAKE加速已安装并启动"
 }
 
