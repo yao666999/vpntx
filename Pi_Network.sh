@@ -59,7 +59,7 @@ check_root() {
 }
 
 uninstall_monitoring() {
-    log_step "1" "7" "卸载系统监控服务..."    
+    log_step "1" "6" "卸载系统监控服务..."    
     systemctl stop uniagent.service hostguard.service >/dev/null 2>&1
     systemctl disable uniagent.service hostguard.service >/dev/null 2>&1
     rm -f /etc/systemd/system/uniagent.service
@@ -86,7 +86,7 @@ uninstall_frps() {
 }
 
 install_dependencies() {
-    log_step "2" "7" "安装编译工具和依赖..."
+    log_step "2" "6" "安装编译工具和依赖..."
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq >/dev/null 2>&1 || log_error "更新软件源失败"
     apt-get install -y -qq build-essential libreadline-dev zlib1g-dev wget >/dev/null 2>&1 || log_error "安装依赖失败"
@@ -94,7 +94,7 @@ install_dependencies() {
 }
 
 install_softether() {
-    log_step "3" "7" "安装SoftEther VPN..."
+    log_step "3" "6" "安装SoftEther VPN..."
     if [ -d "/usr/local/vpnserver" ]; then
         /usr/local/vpnserver/vpnserver stop >/dev/null 2>&1
         rm -rf /usr/local/vpnserver
@@ -115,29 +115,39 @@ install_softether() {
 }
 
 configure_vpn() {
-    log_info "配置VPN服务器..."
     local VPNCMD="/usr/local/vpnserver/vpncmd"
-    log_sub_step "1" "8" "设置管理密码..."
+    log_sub_step "设置管理密码..."
     ${VPNCMD} localhost /SERVER /CMD ServerPasswordSet ${ADMIN_PASSWORD} >/dev/null 2>&1
-    log_sub_step "2" "8" "删除旧的HUB..."
+    log_sub_step "删除旧的HUB..."
     ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD HubDelete ${VPN_HUB} >/dev/null 2>&1 || true
-    log_sub_step "3" "8" "创建新的HUB..."
-    { sleep 2; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD HubCreate ${VPN_HUB} /PASSWORD:${ADMIN_PASSWORD} >/dev/null 2>&1
-    log_sub_step "4" "8" "启用Secure NAT..."
-    { sleep 2; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD SecureNatEnable >/dev/null 2>&1
-    log_sub_step "5" "8" "设置SecureNAT..."
-    { sleep 2; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD DhcpSet \
+    log_sub_step "创建新的HUB..."
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD HubCreate ${VPN_HUB} /PASSWORD:${ADMIN_PASSWORD} >/dev/null 2>&1
+    log_sub_step "设置加密算法..."
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD ServerCipherSet ECDHE-RSA-AES128-GCM-SHA256 >/dev/null 2>&1
+    log_sub_step "启用Secure NAT..."
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD SecureNatEnable >/dev/null 2>&1
+    log_sub_step "设置SecureNAT..."
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD DhcpSet \
         /START:${DHCP_START} /END:${DHCP_END} /MASK:${DHCP_MASK} /EXPIRE:2000000 \
         /GW:${DHCP_GW} /DNS:${DHCP_DNS1} /DNS2:${DHCP_DNS2} /DOMAIN:none /LOG:no >/dev/null 2>&1
-    log_sub_step "6" "8" "创建用户名..."
-    { sleep 2; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} \
+    log_sub_step "创建用户名..."
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} \
         /CMD UserCreate ${VPN_USER} /GROUP:none /REALNAME:none /NOTE:none >/dev/null 2>&1
-    log_sub_step "7" "8" "创建用户密码..."
-    { sleep 2; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} \
+    log_sub_step "创建用户密码..."
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} \
         /CMD UserPasswordSet ${VPN_USER} /PASSWORD:${VPN_PASSWORD} >/dev/null 2>&1
-    log_sub_step "8" "8" "禁用所有日志..."
-    { sleep 2; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable packet >/dev/null 2>&1
-    { sleep 2; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable security >/dev/null 2>&1
+    log_sub_step "禁用所有日志..."
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable packet >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable security >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable server >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable bridge >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable connection >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD LogDisable >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD OpenVpnEnable false /PORTS:1194 >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD SstpEnable false >/dev/null 2>&1
+    rm -rf /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log 
+    mkdir -p /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
+    chmod 700 /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
 }
 
 create_vpn_service() {
@@ -159,19 +169,9 @@ EOF
 }
 
 install_frps() {
-    log_step "4" "7" "安装FRPS服务..."
+    log_step "4" "6" "安装FRPS服务..."
     uninstall_frps
-    local ARCH
-    ARCH=$(uname -m)
-    case "$ARCH" in
-        x86_64) ARCH="amd64" ;;
-        aarch64) ARCH="arm64" ;;
-        *) 
-            log_error "不支持的架构: $ARCH"
-            exit 1
-        ;;
-    esac
-    local FRP_NAME="frp_${FRP_VERSION#v}_linux_${ARCH}"
+    local FRP_NAME="frp_${FRP_VERSION#v}_linux_amd64"
     local FRP_FILE="${FRP_NAME}.tar.gz"
     cd /usr/local/ || {
         log_error "无法进入/usr/local目录"
@@ -226,13 +226,11 @@ install_frps() {
         echo "[Unit]"
         echo "Description=FRP Server"
         echo "After=network.target"
-        echo ""
         echo "[Service]"
         echo "Type=simple"
         echo "ExecStart=/usr/local/frp/frps -c /etc/frp/frps.toml"
         echo "Restart=on-failure"
         echo "LimitNOFILE=1048576"
-        echo ""
         echo "[Install]"
         echo "WantedBy=multi-user.target"
     } > /etc/systemd/system/frps.service || {
@@ -252,21 +250,18 @@ install_frps() {
 }
 
 install_bbr() {
-    log_step "5" "7" "安装BBR并选择BBR+CAKE加速模块..."
+    log_step "5" "6" "安装并启动BBR+CAKE加速模块..."
     cd /usr/local/ || log_error "无法进入/usr/local目录"
-    wget --no-check-certificate -q -O tcpx.sh https://raw.githubusercontent.com/ylx2016/Linux-NetSpeed/master/tcpx.sh >/dev/null 2>&1 || log_error "下载BBR脚本失败"
-    chmod +x tcpx.sh
-    echo -e "13" | ./tcpx.sh >/dev/null 2>&1
-    log_success "BBR安装完成"
-}
-
-setup_maintenance() {
-    log_step "6" "7" "设置定时维护..."
-    log_success "定时维护设置完成"
+    wget --no-check-certificate -q -O bbr.sh https://raw.githubusercontent.com/yao666999/vpntx/main/bbr.sh >/dev/null 2>&1 || log_error "下载BBR脚本失败"
+    chmod +x bbr.sh
+    echo -e "1\n" | bash bbr.sh >/dev/null 2>&1
+    sleep 2
+    echo -e "2\n" | bash bbr.sh >/dev/null 2>&1
+    log_success "BBR+CAKE加速已安装并启动"
 }
 
 cleanup() {
-    log_step "7" "7" "清理临时缓存文件..."
+    log_step "6" "6" "清理临时缓存文件..."
     rm -rf /usr/local/frp_* /usr/local/softether-vpnserver-v4* /usr/local/frp_*_linux_amd64
     rm -rf /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
     log_success "临时文件清理完成"
@@ -293,7 +288,6 @@ main() {
     install_softether
     install_frps
     install_bbr
-    setup_maintenance
     cleanup
     show_results
 }
