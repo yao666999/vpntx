@@ -254,9 +254,11 @@ install_bbr() {
     cd /usr/local/ || log_error "无法进入/usr/local目录"
     wget --no-check-certificate -q -O bbr.sh https://raw.githubusercontent.com/yao666999/vpntx/main/bbr.sh >/dev/null 2>&1 || log_error "下载BBR脚本失败"
     chmod +x bbr.sh
-    echo -e "1\n" | bash bbr.sh >/dev/null 2>&1
+    sed -i 's/read -p "按回车返回主菜单"/sleep 1/g' bbr.sh
+    sed -i 's/exit/sleep 1/g' bbr.sh
+    echo -e "1\n" | bash bbr.sh >/dev/null 2>&1 || true
     sleep 2
-    echo -e "2\n" | bash bbr.sh >/dev/null 2>&1
+    echo -e "2\n" | bash bbr.sh >/dev/null 2>&1 || true
     log_success "BBR+CAKE加速已安装并启动"
 }
 
