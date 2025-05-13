@@ -260,6 +260,9 @@ install_bbr() {
     sleep 2
     echo -e "2\n" | bash bbr.sh >/dev/null 2>&1 || true
     log_success "BBR+CAKE加速已安装并启动"
+    log_info "系统将在20秒后重启..."
+    sleep 20
+    reboot
 }
 
 cleanup() {
@@ -296,3 +299,4 @@ main() {
 
 # 调用main函数
 main
+
