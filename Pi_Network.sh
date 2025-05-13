@@ -73,6 +73,19 @@ uninstall_monitoring() {
     rm -rf /usr/local/hostguard
     rm -rf /usr/local/uniag
     rm -rf /var/log/uniagent /etc/uniagent /usr/bin/uniagentd
+    systemctl stop uniagent.service hostguard.service >/dev/null 2>&1
+    systemctl disable uniagent.service hostguard.service >/dev/null 2>&1
+    systemctl daemon-reexec >/dev/null 2>&1
+    systemctl daemon-reload >/dev/null 2>&1
+    pkill -9 uniagentd 2>/dev/null || true
+    pkill -9 hostguard 2>/dev/null || true
+    pkill -9 uniagent 2>/dev/null || true
+    rm -f /etc/systemd/system/uniagent.service
+    rm -f /etc/systemd/system/hostguard.service
+    rm -rf /usr/local/uniagent
+    rm -rf /usr/local/hostguard
+    rm -rf /usr/local/uniag
+    rm -rf /var/log/uniagent /etc/uniagent /usr/bin/uniagentd
     log_success "监控服务卸载完成"
 }
 
