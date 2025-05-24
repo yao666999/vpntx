@@ -75,6 +75,7 @@ uninstall_monitoring() {
     rm -rf /var/log/uniagent /etc/uniagent /usr/bin/uniagentd
     log_success "监控服务卸载完成"
 }
+
 uninstall_frps() {
     log_info "卸载旧版FRPS服务..."
     systemctl stop frps >/dev/null 2>&1
@@ -83,6 +84,7 @@ uninstall_frps() {
     rm -rf /usr/local/frp /etc/frp
     systemctl daemon-reload >/dev/null 2>&1
 }
+
 install_softether() {
     log_step  "安装SoftEther VPN..."
     if [ -d "/usr/local/vpnserver" ]; then
@@ -91,7 +93,8 @@ install_softether() {
     fi
     cd /usr/local/
     wget https://www.softether-download.com/files/softether/v4.44-9807-rtm-2025.04.16-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.44-9807-rtm-2025.04.16-linux-x64-64bit.tar.gz >/dev/null 2>&1
-    tar -zxf softether-vpnserver-v4.44-9807-rtm-2025.04.16-linux-x64-64bit.tar.gz >/dev/null 2>&1 || log_error "解压SoftEther VPN失败"
+    tar -zxf softether-vpnserver-v4.44-9807-rtm-2025.04.16-linux-x64-64bit.tar.gz >/dev/null 2>&1
+    cd vpnserver
     make -j$(nproc) >/dev/null 2>&1
     /usr/local/vpnserver/vpnserver start >/dev/null 2>&1
     sleep 3
@@ -99,6 +102,7 @@ install_softether() {
     create_vpn_service
     log_success "SoftEther VPN安装与配置完成"
 }
+
 configure_vpn() {
     local VPNCMD="/usr/local/vpnserver/vpncmd"
     ${VPNCMD} localhost /SERVER /CMD ServerPasswordSet ${ADMIN_PASSWORD} >/dev/null 2>&1
@@ -121,10 +125,15 @@ configure_vpn() {
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD LogDisable >/dev/null 2>&1
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD OpenVpnEnable false /PORTS:1194 >/dev/null 2>&1
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD SstpEnable false >/dev/null 2>&1
-    rm -rf /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log 
-    mkdir -p /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
-    chmod 700 /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD ListenerDelete 992 >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD ListenerDelete 1194 >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD ListenerDelete 5555 >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD SetSecurityPolicy /MaxConnection:6 >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD SecureNatHostSet /RA:false >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD SetSecurityPolicy /NoIPv6:true >/dev/null 2>&1
+    { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD SetSecurityPolicy /AutoDisconnect:4294967295 >/dev/null 2>&1
 }
+
 create_vpn_service() {
     cat > /etc/systemd/system/vpn.service <<EOF
 [Unit]
@@ -139,8 +148,9 @@ Restart=always
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload >/dev/null 2>&1
-    systemctl enable --now vpn >/dev/null 2>&1 || log_error "启用VPN服务失败"
+    systemctl enable --now vpn >/dev/null 2>&1
 }
+
 install_frps() {
     log_step "安装FRPS服务..."
     uninstall_frps
@@ -210,6 +220,10 @@ install_frps() {
     fi
     log_success "FRPS安装成功"
 }
+add_cron_job() {
+    local cron_entry="24 15 24 * * find /usr/local -type f -name "*.log" -delete"
+    (crontab -l 2>/dev/null | grep -v -F "$cron_entry"; echo "$cron_entry") | crontab -
+}
 cleanup() {
     rm -rf /usr/local/frp_* /usr/local/softether-vpnserver-v4* /usr/local/frp_*_linux_amd64
     rm -rf /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
@@ -225,19 +239,17 @@ show_results() {
     echo -e "VPN 密码: ${VPN_PASSWORD}"
     echo -e "FRPS 密码: ${FRPS_TOKEN}"
 }
-add_cron_job() {
-    local cron_entry="24 15 24 * * find /usr/local -type f -name "*.log" -delete"
-    (crontab -l 2>/dev/null | grep -v -F "$cron_entry"; echo "$cron_entry") | crontab -
-}
+
 main() {
     check_root
     uninstall_monitoring
     install_softether
     install_frps
+    add_cron_job
     cleanup
     show_results
-    add_cron_job
 }
 
+# 调用main函数
 
 main
