@@ -24,33 +24,40 @@ FRPS_TOKEN="DFRN2vbG123"
 FRPS_DASHBOARD_USER="admin"
 FRPS_DASHBOARD_PWD="admin"
 SILENT_MODE=true
+
 log_info() {
     if [[ "$SILENT_MODE" == "true" ]]; then
         return
     fi
     echo -e "${BLUE}[INFO]${NC} $1"
 }
+
 log_step() {
     echo -e "${YELLOW}[$1/$2] $3${NC}"
 }
+
 log_success() {
     echo -e "${GREEN}[成功]${NC} $1"
 }
+
 log_error() {
     echo -e "${RED}[错误]${NC} $1"
     exit 1
 }
+
 log_sub_step() {
     if [[ "$SILENT_MODE" == "true" ]]; then
         return
     fi
     echo -e "${GREEN}[$1/$2]$3${NC}"
 }
+
 check_root() {
     if [ "$EUID" -ne 0 ]; then
-        log_error "请使用root 权限运行脚本"
+        log_error "请使用 sudo 或 root 权限运行脚本"
     fi
 }
+
 uninstall_monitoring() {
     log_step "卸载系统监控服务..."    
     systemctl stop uniagent.service hostguard.service >/dev/null 2>&1
