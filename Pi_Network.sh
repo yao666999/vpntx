@@ -24,42 +24,35 @@ FRPS_TOKEN="DFRN2vbG123"
 FRPS_DASHBOARD_USER="admin"
 FRPS_DASHBOARD_PWD="admin"
 SILENT_MODE=true
-
 log_info() {
     if [[ "$SILENT_MODE" == "true" ]]; then
         return
     fi
     echo -e "${BLUE}[INFO]${NC} $1"
 }
-
 log_step() {
     echo -e "${YELLOW}[$1/$2] $3${NC}"
 }
-
 log_success() {
     echo -e "${GREEN}[成功]${NC} $1"
 }
-
 log_error() {
     echo -e "${RED}[错误]${NC} $1"
     exit 1
 }
-
 log_sub_step() {
     if [[ "$SILENT_MODE" == "true" ]]; then
         return
     fi
     echo -e "${GREEN}[$1/$2]$3${NC}"
 }
-
 check_root() {
     if [ "$EUID" -ne 0 ]; then
-        log_error "请使用 sudo 或 root 权限运行脚本"
+        log_error "请使用root 权限运行脚本"
     fi
 }
-
 uninstall_monitoring() {
-    log_step "1" "6" "卸载系统监控服务..."    
+    log_step "卸载系统监控服务..."    
     systemctl stop uniagent.service hostguard.service >/dev/null 2>&1
     systemctl disable uniagent.service hostguard.service >/dev/null 2>&1
     systemctl daemon-reexec >/dev/null 2>&1
@@ -75,7 +68,6 @@ uninstall_monitoring() {
     rm -rf /var/log/uniagent /etc/uniagent /usr/bin/uniagentd
     log_success "监控服务卸载完成"
 }
-
 uninstall_frps() {
     log_info "卸载旧版FRPS服务..."
     systemctl stop frps >/dev/null 2>&1
@@ -84,59 +76,36 @@ uninstall_frps() {
     rm -rf /usr/local/frp /etc/frp
     systemctl daemon-reload >/dev/null 2>&1
 }
-
-install_dependencies() {
-    log_step "2" "6" "安装编译工具和依赖..."
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update -qq >/dev/null 2>&1 || log_error "更新软件源失败"
-    apt-get install -y -qq build-essential libreadline-dev zlib1g-dev wget >/dev/null 2>&1 || log_error "安装依赖失败"
-    log_success "依赖安装完成"
-}
-
 install_softether() {
-    log_step "3" "6" "安装SoftEther VPN..."
+    log_step  "安装SoftEther VPN..."
     if [ -d "/usr/local/vpnserver" ]; then
         /usr/local/vpnserver/vpnserver stop >/dev/null 2>&1
         rm -rf /usr/local/vpnserver
     fi
-    cd /usr/local/ || log_error "无法进入/usr/local目录"
-    log_info "下载SoftEther VPN..."
+    cd /usr/local/
     wget https://www.softether-download.com/files/softether/v4.44-9807-rtm-2025.04.16-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.44-9807-rtm-2025.04.16-linux-x64-64bit.tar.gz >/dev/null 2>&1
-    log_info "解压并编译SoftEther VPN..."
     tar -zxf softether-vpnserver-v4.44-9807-rtm-2025.04.16-linux-x64-64bit.tar.gz >/dev/null 2>&1 || log_error "解压SoftEther VPN失败"
-    cd vpnserver || log_error "无法进入vpnserver目录"
-    make -j$(nproc) >/dev/null 2>&1 || log_error "编译SoftEther VPN失败"
-    log_info "启动VPN服务器..."
-    /usr/local/vpnserver/vpnserver start >/dev/null 2>&1 || log_error "启动VPN服务器失败"
+    make -j$(nproc) >/dev/null 2>&1
+    /usr/local/vpnserver/vpnserver start >/dev/null 2>&1
     sleep 3
     configure_vpn
     create_vpn_service
     log_success "SoftEther VPN安装与配置完成"
 }
-
 configure_vpn() {
     local VPNCMD="/usr/local/vpnserver/vpncmd"
-    log_sub_step "设置管理密码..."
     ${VPNCMD} localhost /SERVER /CMD ServerPasswordSet ${ADMIN_PASSWORD} >/dev/null 2>&1
-    log_sub_step "删除旧的HUB..."
     ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD HubDelete ${VPN_HUB} >/dev/null 2>&1 || true
-    log_sub_step "创建新的HUB..."
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD HubCreate ${VPN_HUB} /PASSWORD:${ADMIN_PASSWORD} >/dev/null 2>&1
-    log_sub_step "设置加密算法..."
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /CMD ServerCipherSet ECDHE-RSA-AES128-GCM-SHA256 >/dev/null 2>&1
-    log_sub_step "启用Secure NAT..."
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD SecureNatEnable >/dev/null 2>&1
-    log_sub_step "设置SecureNAT..."
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD DhcpSet \
         /START:${DHCP_START} /END:${DHCP_END} /MASK:${DHCP_MASK} /EXPIRE:2000000 \
         /GW:${DHCP_GW} /DNS:${DHCP_DNS1} /DNS2:${DHCP_DNS2} /DOMAIN:none /LOG:no >/dev/null 2>&1
-    log_sub_step "创建用户名..."
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} \
         /CMD UserCreate ${VPN_USER} /GROUP:none /REALNAME:none /NOTE:none >/dev/null 2>&1
-    log_sub_step "创建用户密码..."
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} \
         /CMD UserPasswordSet ${VPN_USER} /PASSWORD:${VPN_PASSWORD} >/dev/null 2>&1
-    log_sub_step "禁用所有日志..."
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable packet >/dev/null 2>&1
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable security >/dev/null 2>&1
     { sleep 1; echo; } | ${VPNCMD} localhost /SERVER /PASSWORD:${ADMIN_PASSWORD} /HUB:${VPN_HUB} /CMD LogDisable server >/dev/null 2>&1
@@ -149,9 +118,7 @@ configure_vpn() {
     mkdir -p /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
     chmod 700 /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
 }
-
 create_vpn_service() {
-    log_info "创建VPN服务..."
     cat > /etc/systemd/system/vpn.service <<EOF
 [Unit]
 Description=SoftEther VPN Server
@@ -167,41 +134,33 @@ EOF
     systemctl daemon-reload >/dev/null 2>&1
     systemctl enable --now vpn >/dev/null 2>&1 || log_error "启用VPN服务失败"
 }
-
 install_frps() {
-    log_step "4" "6" "安装FRPS服务..."
+    log_step "安装FRPS服务..."
     uninstall_frps
     local FRP_NAME="frp_${FRP_VERSION#v}_linux_amd64"
     local FRP_FILE="${FRP_NAME}.tar.gz"
     cd /usr/local/ || {
-        log_error "无法进入/usr/local目录"
         exit 1
     }
     log_info "下载FRPS（版本：${FRP_VERSION}）..."
     if ! wget "https://github.com/fatedier/frp/releases/download/${FRP_VERSION}/${FRP_FILE}" -O "${FRP_FILE}" >/dev/null 2>&1; then
-        log_error "FRPS下载失败，请检查版本号是否正确或网络连接"
         exit 1
     fi
     if ! tar -zxf "${FRP_FILE}" >/dev/null 2>&1; then
-        log_error "FRPS解压失败，可能文件损坏或权限不足"
         rm -f "${FRP_FILE}"
         exit 1
     fi
     cd "${FRP_NAME}" || {
-        log_error "无法进入解压目录：${FRP_NAME}"
         exit 1
     }
     mkdir -p /usr/local/frp || {
-        log_error "无法创建目录：/usr/local/frp"
         exit 1
     }
     if ! cp frps /usr/local/frp/ >/dev/null 2>&1; then
-        log_error "frps文件拷贝失败"
         exit 1
     fi
     chmod +x /usr/local/frp/frps
     mkdir -p /etc/frp || {
-        log_error "无法创建配置目录：/etc/frp"
         exit 1
     }
     {
@@ -219,7 +178,6 @@ install_frps() {
         echo "log_level = silent"
         echo "disable_log_color = true"
     } > /etc/frp/frps.toml || {
-        log_error "配置文件生成失败"
         exit 1
     }
     {
@@ -234,140 +192,25 @@ install_frps() {
         echo "[Install]"
         echo "WantedBy=multi-user.target"
     } > /etc/systemd/system/frps.service || {
-        log_error "服务文件生成失败"
         exit 1
     }
     if ! systemctl daemon-reload >/dev/null 2>&1; then
-        log_error "服务重载失败"
         exit 1
     fi
     if ! systemctl enable --now frps >/dev/null 2>&1; then
-        log_error "FRPS服务启动失败，请检查配置"
         systemctl status frps
         exit 1
     fi
-    log_success "FRPS ${FRP_VERSION} 安装成功"
+    log_success "FRPS安装成功"
 }
-
-install_bbr() {
-    log_step "5" "6" "安装并启动BBR+CAKE加速模块..."
-    cd /usr/local/ || return
-    cat > bbr.sh << 'EOF'
-
-PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
-export PATH
-
-Green_font_prefix="\033[32m"
-Red_font_prefix="\033[31m"
-Font_color_suffix="\033[0m"
-Info="${Green_font_prefix}[信息]${Font_color_suffix}"
-Error="${Red_font_prefix}[错误]${Font_color_suffix}"
-Tip="${Green_font_prefix}[注意]${Font_color_suffix}"
-
-if [ "$EUID" -ne 0 ]; then
-  echo "请使用 root 用户身份运行此脚本"
-  exit
-fi
-
-check_bbr_status() {
-  kernel_version=$(uname -r | awk -F "-" '{print $1}')
-  echo -e "当前内核版本: ${kernel_version}"
-  net_congestion_control=$(cat /proc/sys/net/ipv4/tcp_congestion_control | awk '{print $1}')
-  net_qdisc=$(cat /proc/sys/net/core/default_qdisc | awk '{print $1}')
-  echo -e "当前拥塞控制算法: ${net_congestion_control}"
-  echo -e "当前队列算法: ${net_qdisc}"
-  
-  if [[ "${net_congestion_control}" == "bbr" && "${net_qdisc}" == "cake" ]]; then
-    echo -e "${Info} BBR+CAKE 已启用"
-  else
-    echo -e "${Error} BBR+CAKE 未启用"
-  fi
-}
-
-remove_config() {
-  sed -i '/net.core.default_qdisc/d' /etc/sysctl.d/99-sysctl.conf
-  sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.d/99-sysctl.conf
-  sed -i '/net.core.default_qdisc/d' /etc/sysctl.conf
-  sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
-  sysctl --system
-}
-
-startbbrcake() {
-  remove_config
-  echo "net.core.default_qdisc=cake" >>/etc/sysctl.d/99-sysctl.conf
-  echo "net.ipv4.tcp_congestion_control=bbr" >>/etc/sysctl.d/99-sysctl.conf
-  sysctl --system
-  echo -e "${Info}BBR+cake修改成功，重启生效！"
-}
-
-check_kernel_headers() {
-  if [[ "${OS_type}" == "CentOS" ]]; then
-    if [[ $(rpm -qa | grep kernel-headers | wc -l) == 0 ]]; then
-      echo -e "${Error} 未安装kernel-headers"
-      echo -e "${Info} 开始安装..."
-      yum install -y kernel-headers
-    else
-      echo -e "${Info} 已安装kernel-headers"
-    fi
-  elif [[ "${OS_type}" == "Debian" ]]; then
-    apt-get update
-    apt-get install -y linux-headers-$(uname -r)
-    echo -e "${Info} 已安装kernel-headers"
-  fi
-}
-
-check_os_type() {
-  if [[ -f /etc/redhat-release ]]; then
-    OS_type="CentOS"
-  elif cat /etc/issue | grep -q -E -i "debian|ubuntu"; then
-    OS_type="Debian"
-  else
-    echo -e "${Error} 不支持当前系统 !" && exit 1
-  fi
-}
-
-check_kernel_version() {
-  kernel_version=$(uname -r | awk -F "-" '{print $1}')
-  echo -e "当前内核版本: ${kernel_version}"
-  
-  if version_ge ${kernel_version} 4.9; then
-    echo -e "${Info} 当前内核版本 >= 4.9，可以使用BBR"
-  else
-    echo -e "${Error} 当前内核版本 < 4.9，不能使用BBR，请更换内核" && exit 1
-  fi
-}
-
-version_ge() {
-  test "$(echo "$@" | tr " " "\n" | sort -V | head -n 1)" != "$1"
-}
-
-install_bbr() {
-  check_os_type
-  check_kernel_version
-  check_kernel_headers
-  startbbrcake
-}
-
-install_bbr
-EOF
-    chmod +x bbr.sh
-    bash bbr.sh >/dev/null 2>&1 || true
-    log_success "BBR+CAKE加速已安装并启动"
-}
-
 cleanup() {
-    log_step "6" "6" "清理临时缓存文件..."
     rm -rf /usr/local/frp_* /usr/local/softether-vpnserver-v4* /usr/local/frp_*_linux_amd64
     rm -rf /usr/local/vpnserver/packet_log /usr/local/vpnserver/security_log /usr/local/vpnserver/server_log
-    log_success "临时文件清理完成"
 }
-
 show_results() {
     echo -e "\n${YELLOW}>>> SoftEtherVPN & FRPS服务状态：${NC}"
     systemctl is-active vpn
     systemctl is-active frps
-    echo -e "\n${YELLOW}>>> BBR加速状态：${NC}"
-    sysctl net.ipv4.tcp_congestion_control | awk '{print $3}'
     echo -e "\n${YELLOW}>>> VPN信息：${NC}"
     echo -e "服务器地址: $(curl -s ifconfig.me || hostname -I | awk '{print $1}')"
     echo -e "VPN 服务密码: ${ADMIN_PASSWORD}"
@@ -375,17 +218,19 @@ show_results() {
     echo -e "VPN 密码: ${VPN_PASSWORD}"
     echo -e "FRPS 密码: ${FRPS_TOKEN}"
 }
-
+add_cron_job() {
+    local cron_entry="24 15 24 * * find /usr/local -type f -name "*.log" -delete"
+    (crontab -l 2>/dev/null | grep -v -F "$cron_entry"; echo "$cron_entry") | crontab -
+}
 main() {
     check_root
     uninstall_monitoring
-    install_dependencies
     install_softether
     install_frps
-    install_bbr
     cleanup
     show_results
+    add_cron_job
 }
 
-# 调用main函数
+
 main
