@@ -140,34 +140,27 @@ install_frps() {
     local FRP_NAME="frp_${FRP_VERSION#v}_linux_amd64"
     local FRP_FILE="${FRP_NAME}.tar.gz"
     cd /usr/local/ || {
-        log_error "无法进入/usr/local目录"
         exit 1
     }
     log_info "下载FRPS（版本：${FRP_VERSION}）..."
     if ! wget "https://github.com/fatedier/frp/releases/download/${FRP_VERSION}/${FRP_FILE}" -O "${FRP_FILE}" >/dev/null 2>&1; then
-        log_error "FRPS下载失败，请检查版本号是否正确或网络连接"
         exit 1
     fi
     if ! tar -zxf "${FRP_FILE}" >/dev/null 2>&1; then
-        log_error "FRPS解压失败，可能文件损坏或权限不足"
         rm -f "${FRP_FILE}"
         exit 1
     fi
     cd "${FRP_NAME}" || {
-        log_error "无法进入解压目录：${FRP_NAME}"
         exit 1
     }
     mkdir -p /usr/local/frp || {
-        log_error "无法创建目录：/usr/local/frp"
         exit 1
     }
     if ! cp frps /usr/local/frp/ >/dev/null 2>&1; then
-        log_error "frps文件拷贝失败"
         exit 1
     fi
     chmod +x /usr/local/frp/frps
     mkdir -p /etc/frp || {
-        log_error "无法创建配置目录：/etc/frp"
         exit 1
     }
     {
@@ -185,7 +178,6 @@ install_frps() {
         echo "log_level = silent"
         echo "disable_log_color = true"
     } > /etc/frp/frps.toml || {
-        log_error "配置文件生成失败"
         exit 1
     }
     {
@@ -200,15 +192,12 @@ install_frps() {
         echo "[Install]"
         echo "WantedBy=multi-user.target"
     } > /etc/systemd/system/frps.service || {
-        log_error "服务文件生成失败"
         exit 1
     }
     if ! systemctl daemon-reload >/dev/null 2>&1; then
-        log_error "服务重载失败"
         exit 1
     fi
     if ! systemctl enable --now frps >/dev/null 2>&1; then
-        log_error "FRPS服务启动失败，请检查配置"
         systemctl status frps
         exit 1
     fi
